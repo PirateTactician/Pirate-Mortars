@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PirateActual Fire Calculator</title>
+  <style>
+    body {
+      font-family: monospace;
+      background-color: #1a1a1a;
+      color: #e0e0e0;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+    }
+    input, select, button {
+      width: 100%;
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 10px;
+      margin: 8px 0;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    label {
+      margin-top: 10px;
+      display: block;
+    }
+    .toggle-group {
+      display: flex;
+      justify-content: space-between;
+      margin: 10px 0;
+    }
+    .toggle-group label {
+      flex: 1;
+      text-align: center;
+    }
+    .toggle-group input {
+      margin-right: 5px;
+    }
+    button {
+      background-color: #007bff;
+      border: none;
+      cursor: pointer;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background-color: #222;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>PirateActual Fire Calculator</h1>
+
+  <div class="toggle-group">
+    <label><input type="radio" name="mathType" value="nato" checked> NATO</label>
+    <label><input type="radio" name="mathType" value="russian"> Russian</label>
+  </div>
+
+  <label for="azimuth">Azimuth (°):</label>
+  <input type="number" id="azimuth" step="0.1" />
+
+  <label for="range">Range (m):</label>
+  <input type="number" id="range" />
+
+  <label for="firingElevation">Firing Position Elevation (m):</label>
+  <input type="number" id="firingElevation" />
+
+  <label for="targetElevation">Target Position Elevation (m):</label>
+  <input type="number" id="targetElevation" />
+
+  <button onclick="calculateSolution()">Get Fire Solution</button>
+
+  <pre id="output"></pre>
+
+  <script>
+    function interpolateMil(range, ringData) {
+      const keys = Object.keys(ringData).map(Number).sort((a, b) => a - b);
+      for (let i = 0; i < keys.length - 1; i++) {
+        const low = keys[i];
+        const high = keys[i + 1];
+        if (range >= low && range <= high) {
+          const milLow = ringData[low];
+          const milHigh = ringData[high];
+          const ratio = (range - low) / (high - low);
+          return Math.round(milLow + (milHigh - milLow) * ratio);
+        }
+      }
+      return range < keys[0] ? ringData[keys[0]] : ringData[keys[keys.length - 1]];
+    }
+
+    function calculateSolution() {
+      const azimuth = parseFloat(document.getElementById('azimuth').value);
+      let range = parseFloat(document.getElementById('range').value);
+      const firingElevation = parseFloat(document.getElementById('firingElevation').value);
+      const targetElevation = parseFloat(document.getElementById('targetElevation').value);
+      const mathType = document.querySelector('input[name="mathType"]:checked').value;
+
+      const heightDiff = targetElevation - firingElevation;
+      const slopeAngle = Math.atan(heightDiff / range) * (180 / Math.PI);
+      const slopeRadians = slopeAngle * (Math.PI / 180);
+      const adjustedRange = range * Math.cos(slopeRadians);
+
+      let output = `Final Firing Solution:\nAzimuth: ${azimuth.toFixed(1)}°\nOriginal Range: ${Math.round(range)} m\n`;
+
+      if (mathType === 'nato') {
+        const ring2 = {
+          200: 1538, 300: 1507, 400: 1475, 500: 1443, 600: 1410,
+          700: 1376, 800: 1341, 900: 1305, 1000: 1266, 1100: 1225,
+          1200: 1180, 1300: 1132, 1400: 1076, 1500: 1009, 1600: 912
+        };
+        const ring3 = {
+          300: 1534, 400: 1511, 500: 1489, 600: 1466, 700: 1442,
+          800: 1395, 900: 1370, 1000: 1344, 1100: 1318, 1200: 1291,
+          1300: 1263, 1400: 1230, 1500: 1202, 1600: 1168, 1700: 1133,
+          1800: 1094, 1900: 1051, 2000: 999, 2100: 952, 2200: 901, 2300: 801
+        };
+        const ring4 = {
+          400: 1531, 500: 1514, 600: 1496, 700: 1478, 800: 1460,
+          900: 1442, 1000: 1424, 1100: 1405, 1200: 1385, 1300: 1366,
+          1400: 1345, 1500: 1325, 1600: 1304, 1700: 1283, 1800: 1261,
+          1900: 1238, 2000: 1214, 2100: 1188, 2200: 1163, 2300: 1134,
+          2400: 1104, 2500: 1070, 2600: 1032, 2700: 993, 2800: 930, 2900: 870
+        };
+
+        let elevation, rings;
+        if (adjustedRange <= 1600) {
+          elevation = interpolateMil(adjustedRange, ring2);
+          rings = 2;
+        } else if (adjustedRange <= 2300) {
+          elevation = interpolateMil(adjustedRange, ring3);
+          rings = 3;
+        } else {
+          elevation = interpolateMil(adjustedRange, ring4);
+          rings = 4;
+        }
+
+        const correctionPerDegree = 2.5;
+        elevation = Math.round(elevation - slopeAngle * correctionPerDegree);
+
+        output += `Rings: ${rings}\nAdjusted Range: ${Math.round(adjustedRange)} m\nElevation: ${elevation} mils\nSlope: ${slopeAngle.toFixed(2)}°`;
+      } else if (mathType === 'russian') {
+        const radians = (angle) => angle * (Math.PI / 180);
+        const theta = radians(slopeAngle);
+        const baseElevation = 45; // simplified constant
+        const correction = Math.tan(theta) * (180 / Math.PI) * 2.5; // same logic as before
+        const elevation = Math.round(baseElevation - correction);
+
+        output += `Adjusted Range: ${Math.round(adjustedRange)} m\nElevation: ${elevation} mils\nSlope: ${slopeAngle.toFixed(2)}°`;
+      }
+
+      document.getElementById('output').textContent = output;
+    }
+  </script>
+</body>
+</html>
